@@ -1,37 +1,43 @@
 // index.js
-import express from 'express';
-import postgres from 'postgres';
-import dotenv from 'dotenv';
-
-dotenv.config();
+const express = require('express');
+const { Pool } = require('pg');
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// ✅ Middleware to parse JSON
+// Middleware to parse JSON bodies
 app.use(express.json());
 
-// ✅ Connect to PostgreSQL/TimescaleDB using Railway URL
-const db = postgres(process.env.DATABASE_URL, { ssl: 'require' });
+// Database connection pool
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false,
+  },
+});
 
-// ✅ Your route to receive pH data
+// Simple home route
+app.get('/', (req, res) => {
+  res.send('PH Monitoring API is running!');
+});
+
+// Endpoint to receive pH readings
 app.post('/submit-ph', async (req, res) => {
   const { tank_id, ph_value, timestamp } = req.body;
 
   try {
-    await db`
-      INSERT INTO ph_readings (tank_id, ph_value, timestamp)
-      VALUES (${tank_id}, ${ph_value}, ${timestamp})
-    `;
-    res.sendStatus(200);
+    await pool.query(
+      'INSERT INTO ph_readings (tank_id, ph_value, timestamp) VALUES ($1, $2, $3)',
+      [tank_id, ph_value, timestamp]
+    );
+    res.status(200).send('Data inserted successfully');
   } catch (error) {
-    console.error('DB insert error:', error);
+    console.error('Error inserting data:', error);
     res.status(500).send('Error saving data');
   }
 });
 
-// ✅ Start the server
+// Start the server
 app.listen(port, () => {
-  console.log(`Server listening on port ${port}`);
+  console.log(`Server is running on port ${port}`);
 });
-
